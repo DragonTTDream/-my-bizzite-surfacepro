@@ -35,9 +35,10 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/build.sh
 
-# 仅安装软件包并清除完成标志，系统会自动触发 OOBE
+# 强制触发初始设置向导，并要求系统在首次启动时重新标记安全上下文
 RUN dnf install -y gnome-initial-setup && \
-    rm -f /var/lib/gnome-initial-setup/done
+    rm -f /var/lib/gnome-initial-setup/done && \
+    touch /.autorelabel
 
 ### LINTING
 ## Verify final image and contents are correct.
