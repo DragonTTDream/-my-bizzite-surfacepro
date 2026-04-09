@@ -3,7 +3,7 @@
 contents = """
 %post
 # 确保这里指向你自己的 GNOME 镜像地址
-bootc switch --mutate-in-place --transport registry ghcr.io/dragonttdream/my-bazzite-surface:latest
+bootc switch --mutate-in-place --transport registry ghcr.io/dragonttdream/-my-bizzite-surfacepro:latest
 %end
 """
 
