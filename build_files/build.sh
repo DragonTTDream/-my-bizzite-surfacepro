@@ -9,8 +9,8 @@ export KERNEL_INSTALL_SKIP_POSTTRANS=1
 rpm --import https://packages.microsoft.com/keys/microsoft.asc
 rpm --import https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
 
-# 3. 配置双仓库 (F43 拿内核，F42 拿固件补丁)
-# 创建 F43 仓库 (主力)
+# 3. 配置双仓库 (F43 拿内核，F42 拿补丁依赖)
+# 创建 F43 仓库
 cat <<EOF > /etc/yum.repos.d/linux-surface-f43.repo
 [linux-surface-f43]
 name=linux-surface-f43
@@ -21,7 +21,7 @@ gpgkey=https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/
 priority=1
 EOF
 
-# 创建 F42 仓库 (补全缺少的固件)
+# 创建 F42 仓库
 cat <<EOF > /etc/yum.repos.d/linux-surface-f42.repo
 [linux-surface-f42]
 name=linux-surface-f42
@@ -45,13 +45,13 @@ EOF
 # 4. 强制清理并安装
 dnf clean all
 
-# 使用 --allowerasing 强制解决已安装的 fc42 包与新仓库的冲突
+# 针对报错的 surface-ipts-firmware 和 surface-secureboot，采用直接物理路径安装以绕过损坏的仓库索引
 dnf install -y --refresh --allowerasing \
     iptsd \
-    surface-ipts-firmware \
+    https://pkg.surfacelinux.com/fedora/f42/surface-ipts-firmware-20191215-1.noarch.rpm \
+    https://pkg.surfacelinux.com/fedora/f42/surface-secureboot-20251230-1.fc42.noarch.rpm \
     libwacom-surface \
     libwacom-surface-data \
-    surface-secureboot \
     code
 
 # 5. 强制启用服务
