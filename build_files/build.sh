@@ -20,32 +20,34 @@ gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 
 # 4. 手动注入 IPTS 固件
-echo "Manually injecting IPTS firmware from GitHub source..."
+echo "Manually injecting IPTS firmware..."
 mkdir -p /usr/lib/firmware/intel/ipts
 curl -L https://github.com/linux-surface/surface-ipts-firmware/archive/refs/heads/master.tar.gz | tar -xz -C /tmp
 cp -r /tmp/surface-ipts-firmware-master/firmware/intel/ipts/* /usr/lib/firmware/intel/ipts/
 
-# 5. 集成内核参数（禁用 PSR 以解决闪烁）
-echo "Integrating kernel arguments into image..."
-mkdir -p /usr/lib/bootc/kargs.d
-printf 'i915.enable_psr=0\n' > /usr/lib/bootc/kargs.d/50-surface-psr.kargs
-
-# 6. 修复手写笔模式与自启动逻辑
-echo "Fixing iptsd configuration and auto-start for SP8..."
+# 5. 修复手写笔模式（增强版配置文件）
+echo "Creating enhanced iptsd configuration for SP8..."
 mkdir -p /usr/share/iptsd
 cat <<EOF > /usr/share/iptsd/045E:0C37.conf
+[Device]
+Name=Surface Pro 8
+Model=045E:0C37
+
 [Config]
 SensorWidth=2880
 SensorHeight=1920
+# 强制开启手写笔与触控双模
+Touchscreen=true
+Stylus=true
 EOF
 
+# 6. 修复服务自动启动逻辑
 mkdir -p /etc/udev/rules.d
 printf 'ACTION=="add", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0c37", ENV{SYSTEMD_WANTS}+="iptsd@$env{DEVNAME}.service"' > /etc/udev/rules.d/99-ipts-force.rules
 
 # 7. 基于 GitHub Assets 的物理路径安装
 GH_RELEASE="https://github.com/linux-surface/linux-surface/releases/download/fedora-43-6.18.8-1"
 
-dnf clean all
 dnf install -y --refresh --allowerasing \
     $GH_RELEASE/kernel-surface-6.18.8-1.surface.fc43.x86_64.rpm \
     $GH_RELEASE/kernel-surface-core-6.18.8-1.surface.fc43.x86_64.rpm \
@@ -63,13 +65,9 @@ dnf install -y --refresh --allowerasing \
 
 # 8. 精准清理内核模块 (解决 bootc lint 报错)
 KERNEL_VERSION=$(rpm -q kernel-surface --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' | head -n 1)
-
 if [ -n "$KERNEL_VERSION" ]; then
-    echo "Cleaning up redundant kernels..."
     find /usr/lib/modules -maxdepth 1 -mindepth 1 -not -name "$KERNEL_VERSION" -exec rm -rf {} +
     depmod -a "$KERNEL_VERSION"
-else
-    echo "Error: kernel-surface version could not be determined." && exit 1
 fi
 
 # 9. 禁用冗余仓库
