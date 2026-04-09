@@ -13,9 +13,6 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/build.sh
 
-# 注入自动修复标签（关键）
-# 这将确保新安装的 IPTS 固件和 iptsd 服务在重启后拥有正确的 SELinux 权限，使笔能正常书写
-RUN touch /.autorelabel
 
 ### LINTING
 ## Verify final image and contents are correct.
