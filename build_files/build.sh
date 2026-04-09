@@ -9,25 +9,14 @@ export KERNEL_INSTALL_SKIP_POSTTRANS=1
 rpm --import https://packages.microsoft.com/keys/microsoft.asc
 rpm --import https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
 
-# 3. 配置双仓库
-cat <<EOF > /etc/yum.repos.d/linux-surface-f43.repo
-[linux-surface-f43]
-name=linux-surface-f43
-baseurl=https://pkg.surfacelinux.com/fedora/f43
-enabled=1
-gpgcheck=1
-gpgkey=https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
-priority=1
-EOF
-
-cat <<EOF > /etc/yum.repos.d/linux-surface-f42.repo
-[linux-surface-f42]
-name=linux-surface-f42
+# 3. 配置仓库 (锁定 F42 稳定版，因为 F43 还是坏的)
+cat <<EOF > /etc/yum.repos.d/linux-surface.repo
+[linux-surface]
+name=linux-surface-f42-stable
 baseurl=https://pkg.surfacelinux.com/fedora/f42
 enabled=1
 gpgcheck=1
 gpgkey=https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
-priority=10
 EOF
 
 cat <<EOF > /etc/yum.repos.d/vscode.repo
@@ -39,36 +28,29 @@ gpgcheck=1
 gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 
-# 4. 社区标准修复：手动注入 IPTS 固件
+# 4. 社区标准修复：手动注入 IPTS 固件 (修正路径并移除单引号)
 echo "Manually injecting IPTS firmware from GitHub source..."
 mkdir -p /usr/lib/firmware/intel/ipts
 
 # 下载并解压
 curl -L https://github.com/linux-surface/surface-ipts-firmware/archive/refs/heads/master.tar.gz | tar -xz -C /tmp
 
-# 修正路径并移除单引号，确保通配符展开
-# 注意：该仓库的固件实际位于 firmware/intel/ipts 目录下
-if [ -d /tmp/surface-ipts-firmware-master/firmware/intel/ipts ]; then
-    cp -r /tmp/surface-ipts-firmware-master/firmware/intel/ipts/* /usr/lib/firmware/intel/ipts/
-else
-    # 兼容性处理：如果 master 路径不存在，尝试 main 路径（GitHub 默认分支名变更可能导致此问题）
-    # 或者尝试直接搜索 ipts 目录
-    SOURCE_PATH=$(find /tmp -type d -name "ipts" | head -n 1)
-    cp -r "${SOURCE_PATH}"/* /usr/lib/firmware/intel/ipts/
-fi
+# ！！！修正后的路径：GitHub 仓库里的 .bin 文件在 firmware/intel/ipts 目录下
+# 且移除单引号，允许通配符展开
+cp -r /tmp/surface-ipts-firmware-master/firmware/intel/ipts/* /usr/lib/firmware/intel/ipts/
 
-# 5. 强制清理并安装软件包
+# 5. 安装组件 (不再安装 surface-ipts-firmware RPM，因为它已被手动注入)
 dnf clean all
-
-# 仅安装 iptsd 和配套工具，固件已由上方手动注入
 dnf install -y --refresh --allowerasing \
     iptsd \
     libwacom-surface \
     libwacom-surface-data \
-    code || dnf install -y --refresh --allowerasing --skip-broken iptsd libwacom-surface libwacom-surface-data code
+    surface-secureboot \
+    code
 
-# 6. 强制启用服务
-systemctl enable iptsd.service
+# 6. 【关键修改】不再手动 enable iptsd.service
+# 社区解释该服务由 udev 自动触发，手动 enable 会因 unit 不存在而报错。
+# 只要上面的固件注入成功，系统重启后硬件被识别，iptsd 会自动启动。
 
 # 7. 清理非 Surface 内核
 echo "Cleaning up non-surface kernels..."
