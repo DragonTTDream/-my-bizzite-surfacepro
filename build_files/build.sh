@@ -52,3 +52,12 @@ fi
 dnf config-manager --set-disabled terra-mesa || true
 # 强制修改配置文件以确保在打包阶段不会被调用
 sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/terra*.repo || true
+
+# --- 彻底清理旧内核，解决双内核冲突 ---
+# 找出不是 surface 的内核版本并删掉它们
+echo "Cleaning up non-surface kernels..."
+KERNEL_VERSION=$(rpm -q kernel-surface --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')
+# 强制删除基础镜像自带的通用内核文件夹
+find /usr/lib/modules -maxdepth 1 -mindepth 1 -not -name "$KERNEL_VERSION" -exec rm -rf {} +
+# 运行 depmod 确保新内核被正确识别
+depmod -a "$KERNEL_VERSION"
