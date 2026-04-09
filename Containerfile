@@ -35,8 +35,9 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/build.sh
 
-# 强制触发初始设置向导，并要求系统在首次启动时重新标记安全上下文
+# 强制开启初始设置服务，移除完成标志，并注入自动修复标签
 RUN dnf install -y gnome-initial-setup && \
+    systemctl enable gnome-initial-setup.service && \
     rm -f /var/lib/gnome-initial-setup/done && \
     touch /.autorelabel
 
