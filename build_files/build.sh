@@ -9,7 +9,7 @@ export KERNEL_INSTALL_SKIP_POSTTRANS=1
 rpm --import https://packages.microsoft.com/keys/microsoft.asc
 rpm --import https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
 
-# 3. 配置双仓库 (F43 拿内核，F42 作为补位)
+# 3. 配置双仓库
 cat <<EOF > /etc/yum.repos.d/linux-surface-f43.repo
 [linux-surface-f43]
 name=linux-surface-f43
@@ -39,20 +39,28 @@ gpgcheck=1
 gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 
-# 4. 社区标准修复：手动注入 IPTS 固件 (绕过损坏的 RPM 仓库)
+# 4. 社区标准修复：手动注入 IPTS 固件
 echo "Manually injecting IPTS firmware from GitHub source..."
-# 创建固件存放目录
 mkdir -p /usr/lib/firmware/intel/ipts
-# 直接从源码仓库抓取最新固件二进制文件并部署
-# 使用 curl 抓取 zip 包并解压至目标目录
-curl -L https://github.com/linux-surface/surface-ipts-firmware/archive/refs/heads/master.tar.gz | tar -xz -C /tmp
-cp -r /tmp/surface-ipts-firmware-master/ipts/* /usr/lib/firmware/intel/ipts/
 
-# 5. 强制清理并安装剩余软件包
+# 下载并解压
+curl -L https://github.com/linux-surface/surface-ipts-firmware/archive/refs/heads/master.tar.gz | tar -xz -C /tmp
+
+# 修正路径并移除单引号，确保通配符展开
+# 注意：该仓库的固件实际位于 firmware/intel/ipts 目录下
+if [ -d /tmp/surface-ipts-firmware-master/firmware/intel/ipts ]; then
+    cp -r /tmp/surface-ipts-firmware-master/firmware/intel/ipts/* /usr/lib/firmware/intel/ipts/
+else
+    # 兼容性处理：如果 master 路径不存在，尝试 main 路径（GitHub 默认分支名变更可能导致此问题）
+    # 或者尝试直接搜索 ipts 目录
+    SOURCE_PATH=$(find /tmp -type d -name "ipts" | head -n 1)
+    cp -r "${SOURCE_PATH}"/* /usr/lib/firmware/intel/ipts/
+fi
+
+# 5. 强制清理并安装软件包
 dnf clean all
 
-# 注意：移除了报错的 surface-ipts-firmware RPM，改由上方手动注入
-# 尝试安装其他核心组件。如果 surface-secureboot 依然 404，则通过 --skip-broken 跳过
+# 仅安装 iptsd 和配套工具，固件已由上方手动注入
 dnf install -y --refresh --allowerasing \
     iptsd \
     libwacom-surface \
@@ -62,7 +70,12 @@ dnf install -y --refresh --allowerasing \
 # 6. 强制启用服务
 systemctl enable iptsd.service
 
-# 7. 清理非 Surface 内核，确保引导唯一
+# 7. 清理非 Surface 内核
 echo "Cleaning up non-surface kernels..."
 KERNEL_VERSION=$(rpm -q kernel-surface --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' | head -n 1)
-find /usr/lib
+find /usr/lib/modules -maxdepth 1 -mindepth 1 -not -name "$KERNEL_VERSION" -exec rm -rf {} +
+depmod -a "$KERNEL_VERSION"
+
+# 8. 禁用冲突仓库
+dnf config-manager --set-disabled terra-mesa || true
+sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/terra*.repo || true
