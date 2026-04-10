@@ -5,11 +5,11 @@ set -ouex pipefail
 export TMPDIR=/var/tmp
 export KERNEL_INSTALL_SKIP_POSTTRANS=1
 
-# 2. 导入密钥
+# 2. 导入密钥与配置仓库
 rpm --import https://packages.microsoft.com/keys/microsoft.asc
 rpm --import https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
 
-# 3. 配置 VS Code 仓库
+# 配置 VS Code 仓库
 cat <<EOF > /etc/yum.repos.d/vscode.repo
 [code]
 name=Visual Studio Code
@@ -19,14 +19,29 @@ gpgcheck=1
 gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 
-# 4. 手动注入 IPTS 固件
+# 配置 Linux-Surface 仓库 (用于安装最新版 iptsd)
+cat <<EOF > /etc/yum.repos.d/linux-surface.repo
+[linux-surface]
+name=Linux Surface
+baseurl=https://pkg.surfacelinux.com/fedora/f\$releasever
+enabled=1
+gpgcheck=1
+gpgkey=https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
+EOF
+
+# 3. 手动注入 IPTS 固件
 echo "Manually injecting IPTS firmware..."
 mkdir -p /usr/lib/firmware/intel/ipts
 curl -L https://github.com/linux-surface/surface-ipts-firmware/archive/refs/heads/master.tar.gz | tar -xz -C /tmp
 cp -r /tmp/surface-ipts-firmware-master/firmware/intel/ipts/* /usr/lib/firmware/intel/ipts/
 
-# 5. 修复手写笔模式（增强版配置文件）
-echo "Creating enhanced iptsd configuration for SP8..."
+# 4. 修复内核参数 (解决中断验证失败导致的触控笔失效与屏幕闪烁)
+echo "Integrating kernel arguments into image..."
+mkdir -p /usr/lib/bootc/kargs.d
+printf 'intremap=nosid i915.enable_psr=0\n' > /usr/lib/bootc/kargs.d/50-surface-pro-8.kargs
+
+# 5. 修复手写笔模式 (注入深度位偏移描述以激活 Stylus Mode)
+echo "Creating deep-offset iptsd configuration for SP8..."
 mkdir -p /usr/share/iptsd
 cat <<EOF > /usr/share/iptsd/045E:0C37.conf
 [Device]
@@ -36,9 +51,23 @@ Model=045E:0C37
 [Config]
 SensorWidth=2880
 SensorHeight=1920
-# 强制开启手写笔与触控双模
 Touchscreen=true
 Stylus=true
+
+[Stylus]
+# 核心位偏移参数：解决从 3500 字节原始数据中提取压感的问题
+X.Offset = 0
+X.Size = 16
+Y.Offset = 16
+Y.Size = 16
+Pressure.Offset = 32
+Pressure.Size = 12
+Tip.Offset = 44
+Tip.Size = 1
+Eraser.Offset = 45
+Eraser.Size = 1
+Invert.Offset = 46
+Invert.Size = 1
 EOF
 
 # 6. 修复服务自动启动逻辑
@@ -71,4 +100,4 @@ if [ -n "$KERNEL_VERSION" ]; then
 fi
 
 # 9. 禁用冗余仓库
-sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/terra-extras.repo /etc/yum.repos.d/terra-mesa.repo /etc/yum.repos.d/terra.repo || true
+sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/terra-extras.repo /etc/yum.repos.d/terra-mesa.repo /etc/yum.repos.d/terra.repo /etc/yum.repos.d/linux-surface.repo || true
