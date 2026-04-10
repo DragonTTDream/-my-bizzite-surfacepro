@@ -19,7 +19,7 @@ gpgcheck=1
 gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 
-# 配置 Linux-Surface 仓库 (用于安装最新版 iptsd)
+# 配置 Linux-Surface 仓库 (用于满足依赖关系)
 cat <<EOF > /etc/yum.repos.d/linux-surface.repo
 [linux-surface]
 name=Linux Surface
@@ -76,6 +76,7 @@ printf 'ACTION=="add", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="045e", ATTRS{idPro
 
 # 7. 基于 GitHub Assets 的物理路径安装
 GH_RELEASE="https://github.com/linux-surface/linux-surface/releases/download/fedora-43-6.18.8-1"
+IPTSD_URL="https://github.com/linux-surface/iptsd/releases/download/v3.1.0/iptsd-3.1.0-1.fc43.x86_64.rpm"
 
 dnf install -y --refresh --allowerasing \
     $GH_RELEASE/kernel-surface-6.18.8-1.surface.fc43.x86_64.rpm \
@@ -90,7 +91,8 @@ dnf install -y --refresh --allowerasing \
     $GH_RELEASE/kernel-surface-modules-internal-6.18.8-1.surface.fc43.x86_64.rpm \
     https://pkg.surfacelinux.com/fedora/f42/surface-secureboot-20251230-1.fc42.noarch.rpm \
     code \
-    iptsd
+    $IPTSD_URL
+    # iptsd
 
 # 8. 精准清理内核模块 (解决 bootc lint 报错)
 KERNEL_VERSION=$(rpm -q kernel-surface --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' | head -n 1)
