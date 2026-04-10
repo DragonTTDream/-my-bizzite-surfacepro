@@ -27,7 +27,12 @@ EOF
 # ==============================================================================
 echo "Integrating kernel arguments into image..."
 mkdir -p /usr/lib/bootc/kargs.d
-printf 'i915.enable_psr=0\n' > /usr/lib/bootc/kargs.d/50-surface-pro-8.kargs
+
+# 参数说明：
+# 1. i915.enable_psr=0: 禁用面板自刷新 (Panel Self Refresh)，解决 Intel 核显在 Surface 上的屏幕闪烁与卡顿问题。
+# 2. intremap=nosid: 禁用 IOMMU 的 Source ID (SID) 校验。这是 Surface Pro 8 (ITHC 架构) 的核心修复参数，
+#    由于 ITHC 控制器上报的 SID 与固件不匹配，若不开启此参数，内核将拦截所有触控中断信号，导致触摸与手写笔完全失效。
+printf 'i915.enable_psr=0\nintremap=nosid\n' > /usr/lib/bootc/kargs.d/50-surface-pro-8.kargs
 
 # ==============================================================================
 # 4. 核心驱动与依赖包物理路径声明
