@@ -19,46 +19,12 @@ gpgcheck=1
 gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 
-# 3. 修复内核参数 (解决 ITHC 驱动中断验证失败及屏幕闪烁)
-# intremap=nosid 是 Surface Pro 8 稳定运行的必要补丁
+# 3. 修复内核参数 (解决屏幕闪烁)
 echo "Integrating kernel arguments into image..."
 mkdir -p /usr/lib/bootc/kargs.d
-printf 'intremap=nosid i915.enable_psr=0\n' > /usr/lib/bootc/kargs.d/50-surface-pro-8.kargs
+printf 'i915.enable_psr=0\n' > /usr/lib/bootc/kargs.d/50-surface-pro-8.kargs
 
-# 4. 修复手写笔模式 (根据要求已注释)
-# echo "Creating deep-offset iptsd configuration for SP8..."
-# mkdir -p /usr/share/iptsd
-# cat <<EOF > /usr/share/iptsd/045E:0C37.conf
-# [Device]
-# Name=Surface Pro 8
-# Model=045E:0C37
-#
-# [Config]
-# SensorWidth=2880
-# SensorHeight=1920
-# Touchscreen=true
-# Stylus=true
-#
-# [Stylus]
-# X.Offset = 0
-# X.Size = 16
-# Y.Offset = 16
-# Y.Size = 16
-# Pressure.Offset = 32
-# Pressure.Size = 12
-# Tip.Offset = 44
-# Tip.Size = 1
-# Eraser.Offset = 45
-# Eraser.Size = 1
-# Invert.Offset = 46
-# Invert.Size = 1
-# EOF
-
-# 5. 修复服务自动启动逻辑
-mkdir -p /etc/udev/rules.d
-printf 'ACTION=="add", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0c37", ENV{SYSTEMD_WANTS}+="iptsd@$env{DEVNAME}.service"' > /etc/udev/rules.d/99-ipts-force.rules
-
-# 6. 基于物理路径安装 (使用 GitHub 与 SourceForge 官方镜像)
+# 4. 基于物理路径安装 (使用 GitHub 与 SourceForge 官方镜像)
 GH_RELEASE="https://github.com/linux-surface/linux-surface/releases/download/fedora-43-6.18.8-1"
 # 您指定的 iptsd v3.1.0 资产地址
 IPTSD_URL="https://github.com/linux-surface/iptsd/releases/download/v3.1.0/iptsd-3.1.0-1.fc43.x86_64.rpm"
@@ -84,12 +50,12 @@ dnf install -y --refresh --allowerasing \
     $IPTSD_URL \
     code
 
-# 7. 精准清理内核模块 (解决 bootc lint 报错)
+# 5. 精准清理内核模块 (解决 bootc lint 报错)
 KERNEL_VERSION=$(rpm -q kernel-surface --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' | head -n 1)
 if [ -n "$KERNEL_VERSION" ]; then
     find /usr/lib/modules -maxdepth 1 -mindepth 1 -not -name "$KERNEL_VERSION" -exec rm -rf {} +
     depmod -a "$KERNEL_VERSION"
 fi
 
-# 8. 禁用冗余仓库
+# 6. 禁用冗余仓库
 sed -i 's/enabled=1/enabled=0/g' /etc/yum.repos.d/terra-extras.repo /etc/yum.repos.d/terra-mesa.repo /etc/yum.repos.d/terra.repo || true
